@@ -8,10 +8,11 @@ import javax.tools.ForwardingJavaFileManager;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 
-final class InMemoryFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
+public final class InMemoryFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
+
 	private final InMemoryClassFile byteObject;
 
-	InMemoryFileManager(final StandardJavaFileManager fileManager, final InMemoryClassFile byteObject) {
+	protected InMemoryFileManager(final StandardJavaFileManager fileManager, final InMemoryClassFile byteObject) {
 		super(fileManager);
 		this.byteObject = Objects.requireNonNull(byteObject, "byteObject is null");
 	}

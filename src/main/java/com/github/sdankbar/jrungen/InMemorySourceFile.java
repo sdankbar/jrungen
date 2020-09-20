@@ -7,10 +7,10 @@ import java.util.Objects;
 import javax.tools.SimpleJavaFileObject;
 
 public class InMemorySourceFile extends SimpleJavaFileObject {
+
 	private static URI toURI(final String className) {
 		Objects.requireNonNull(className, "className is null");
-		final String cleanClassName = className.replaceAll("\\.", "/");
-		return URI.create("string:///" + cleanClassName + Kind.SOURCE.extension);
+		return URI.create("string:///" + className + Kind.SOURCE.extension);
 	}
 
 	private final String sourceCode;

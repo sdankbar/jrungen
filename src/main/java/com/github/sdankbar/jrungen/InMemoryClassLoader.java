@@ -2,10 +2,11 @@ package com.github.sdankbar.jrungen;
 
 import java.util.Objects;
 
-final class InMemoryClassLoader extends ClassLoader {
+public final class InMemoryClassLoader extends ClassLoader {
+
 	private final InMemoryClassFile classOutput;
 
-	InMemoryClassLoader(final InMemoryClassFile classOutput) {
+	protected InMemoryClassLoader(final InMemoryClassFile classOutput) {
 		this.classOutput = Objects.requireNonNull(classOutput, "classOutput is null");
 	}
 

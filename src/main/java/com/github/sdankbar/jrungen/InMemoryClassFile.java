@@ -9,13 +9,13 @@ import java.util.Objects;
 import javax.tools.SimpleJavaFileObject;
 
 public class InMemoryClassFile extends SimpleJavaFileObject {
+
 	private static URI toURI(final String className) {
 		Objects.requireNonNull(className, "className is null");
-		final String cleanClassName = className.replaceAll("\\.", "/");
-		return URI.create("bytes:///" + cleanClassName);
+		return URI.create("bytes:///" + className);
 	}
 
-	private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+	private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream(256);
 
 	protected InMemoryClassFile(final String name) {
 		super(toURI(name), Kind.CLASS);
