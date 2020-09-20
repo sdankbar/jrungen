@@ -8,7 +8,7 @@ import java.util.Objects;
 
 import javax.tools.SimpleJavaFileObject;
 
-public class InmemoryClassFile extends SimpleJavaFileObject {
+public class InMemoryClassFile extends SimpleJavaFileObject {
 	private static URI toURI(final String className) {
 		Objects.requireNonNull(className, "className is null");
 		final String cleanClassName = className.replaceAll("\\.", "/");
@@ -17,7 +17,7 @@ public class InmemoryClassFile extends SimpleJavaFileObject {
 
 	private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-	protected InmemoryClassFile(final String name) {
+	protected InMemoryClassFile(final String name) {
 		super(toURI(name), Kind.CLASS);
 	}
 

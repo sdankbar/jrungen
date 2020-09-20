@@ -6,7 +6,7 @@ import java.util.Objects;
 
 import javax.tools.SimpleJavaFileObject;
 
-public class InmemorySourceFile extends SimpleJavaFileObject {
+public class InMemorySourceFile extends SimpleJavaFileObject {
 	private static URI toURI(final String className) {
 		Objects.requireNonNull(className, "className is null");
 		final String cleanClassName = className.replaceAll("\\.", "/");
@@ -15,7 +15,7 @@ public class InmemorySourceFile extends SimpleJavaFileObject {
 
 	private final String sourceCode;
 
-	protected InmemorySourceFile(final String className, final String sourceCode) {
+	protected InMemorySourceFile(final String className, final String sourceCode) {
 		super(toURI(className), Kind.SOURCE);
 		this.sourceCode = Objects.requireNonNull(sourceCode, "sourceCode is null");
 	}

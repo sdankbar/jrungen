@@ -2,10 +2,10 @@ package com.github.sdankbar.jrungen;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 
+import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
-import javax.tools.FileObject;
-import javax.tools.ForwardingJavaFileManager;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
@@ -15,24 +15,23 @@ public class RuntimeCompiler {
 
 	private final JavaCompiler compilerReference = javax.tools.ToolProvider.getSystemJavaCompiler();
 
-	public void compile(final String className, final String sourceCode) {
+	public void compile(final String className, final String sourceCode) throws CompilationException {
 		final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
 
-		final InmemoryClassFile classOuput = new InmemoryClassFile(className);
-		final JavaFileManager wrappedManager = createFileManager(collector, classOuput);
+		final InMemoryClassFile classOuput = new InMemoryClassFile(className);
+		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
+				null);
+		final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput);
 
 		final JavaCompiler.CompilationTask task = compilerReference.getTask(null, wrappedManager, collector, null, null,
 				getCompilationUnits(className, sourceCode));
 
-		final long s = System.currentTimeMillis();
 		if (!task.call()) {
-			collector.getDiagnostics().forEach(System.out::println);
+			compilationError(collector);
 		}
-		final long e = System.currentTimeMillis();
-		System.out.println("Compiling took " + (e - s) + " milliseconds");
 
-		// loading and using our compiled class
-		final ClassLoader inMemoryClassLoader = createClassLoader(classOuput);
+		// Load the in memory bytecode as a Class.
+		final ClassLoader inMemoryClassLoader = new InMemoryClassLoader(classOuput);
 		Class<Runnable> test;
 		try {
 			test = (Class<Runnable>) inMemoryClassLoader.loadClass(className);
@@ -52,33 +51,15 @@ public class RuntimeCompiler {
 		}
 	}
 
-	private JavaFileManager createFileManager(final DiagnosticCollector<JavaFileObject> collector,
-			final InmemoryClassFile byteObject) {
-		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
-				null);
-
-		return new ForwardingJavaFileManager<StandardJavaFileManager>(standardFileManager) {
-			@Override
-			public JavaFileObject getJavaFileForOutput(final Location location, final String className,
-					final JavaFileObject.Kind kind, final FileObject sibling) throws IOException {
-				return byteObject;
-			}
-		};
+	private void compilationError(final DiagnosticCollector<JavaFileObject> collector) throws CompilationException {
+		final String errorMsg = collector.getDiagnostics().stream().map(Diagnostic::toString)
+				.collect(Collectors.joining("\n"));
+		throw new CompilationException(errorMsg);
 	}
 
-	private static ClassLoader createClassLoader(final InmemoryClassFile byteObject) {
-		return new ClassLoader() {
-			@Override
-			public Class<?> findClass(final String name) throws ClassNotFoundException {
-				final byte[] bytes = byteObject.getBytes();
-				return defineClass(name, bytes, 0, bytes.length);
-			}
-		};
-	}
-
-	public static Iterable<? extends JavaFileObject> getCompilationUnits(final String className,
+	private static Iterable<? extends JavaFileObject> getCompilationUnits(final String className,
 			final String sourceCode) {
-		final InmemorySourceFile stringObject = new InmemorySourceFile(className, sourceCode);
+		final InMemorySourceFile stringObject = new InMemorySourceFile(className, sourceCode);
 		return Arrays.asList(stringObject);
 	}
 

@@ -1,9 +1,7 @@
 package com.github.sdankbar.jrungen;
 
-import java.io.IOException;
-
 public class Main {
-	public static void main(final String[] args) throws IOException {
+	public static void main(final String[] args) throws CompilationException {
 		final RuntimeCompiler c = new RuntimeCompiler();
 		c.compile("Test", getSource());
 	}
@@ -11,6 +9,6 @@ public class Main {
 	private static String getSource() {
 		return "public class Test implements Runnable{" + //
 				"public void run(){" + //
-				"System.out.println(\"Hello World\");}}";
+				"System.out.println(\"Hello World2\");}}";
 	}
 }
