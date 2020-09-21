@@ -20,20 +20,18 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.github.sdankbar.jrungen;
+package com.github.sdankbar.jrungen.helper;
 
-public class CompilationException extends Exception {
+/**
+ *
+ *
+ */
+public class InvokeObject {
 
-	public CompilationException(final String msg, final Throwable cause) {
-		super(msg, cause);
+	long i = 0;
+
+	public long call() {
+		++i;
+		return i;
 	}
-
-	public CompilationException(final Throwable cause) {
-		super(cause);
-	}
-
-	public CompilationException(final String msg) {
-		super(msg);
-	}
-
 }
