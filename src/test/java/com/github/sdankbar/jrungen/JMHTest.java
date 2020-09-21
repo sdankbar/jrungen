@@ -54,7 +54,7 @@ public class JMHTest {
 	@State(Scope.Thread)
 	public static class BenchmarkState {
 		InvokeObject obj = new InvokeObject();
-		Function<InvokeObject, Long> func;
+		Function<InvokeObject, Integer> func;
 		Method reflectMethod;
 
 		/**
@@ -67,7 +67,8 @@ public class JMHTest {
 		public void setup() throws NoSuchMethodException, SecurityException {
 			final RuntimeCompiler c = new RuntimeCompiler();
 			try {
-				func = c.compileAndConstructFunctionalInterface(InvokeObject.class, Long.class, "return arg.call();");
+				func = c.compileAndConstructFunctionalInterface(InvokeObject.class, Integer.class,
+						"return arg.call();");
 			} catch (final CompilationException e) {
 				e.printStackTrace();
 			}
@@ -82,7 +83,7 @@ public class JMHTest {
 	 */
 	@Benchmark
 	public void benchmark_generatedCode(final BenchmarkState state, final Blackhole bh) {
-		bh.consume(state.func.apply(state.obj));
+		state.func.apply(state.obj);
 	}
 
 	/**
@@ -91,7 +92,7 @@ public class JMHTest {
 	 */
 	@Benchmark
 	public void benchmark_native(final BenchmarkState state, final Blackhole bh) {
-		bh.consume(state.obj.call());
+		state.obj.call();
 	}
 
 	/**
@@ -101,7 +102,7 @@ public class JMHTest {
 	@Benchmark
 	public void benchmark_reflect(final BenchmarkState state, final Blackhole bh) {
 		try {
-			bh.consume(state.reflectMethod.invoke(state.obj));
+			state.reflectMethod.invoke(state.obj);
 		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 			e.printStackTrace();
 		}
