@@ -33,4 +33,8 @@ public class InvokeObject {
 	public int call() {
 		return ++i;
 	}
+
+	public int call2(final int a, final int b) {
+		return i += (a + b);
+	}
 }

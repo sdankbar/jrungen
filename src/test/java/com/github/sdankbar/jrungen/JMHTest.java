@@ -25,6 +25,7 @@ package com.github.sdankbar.jrungen;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import org.junit.Test;
@@ -55,7 +56,9 @@ public class JMHTest {
 	public static class BenchmarkState {
 		InvokeObject obj = new InvokeObject();
 		Function<InvokeObject, Integer> func;
+		BiFunction<InvokeObject, Integer[], Integer> func2;
 		Method reflectMethod;
+		Method reflectMethod2;
 
 		/**
 		 * Sets up shared state.
@@ -73,7 +76,15 @@ public class JMHTest {
 				e.printStackTrace();
 			}
 
+			try {
+				func2 = c.compileAndConstructBiFunctionalInterface(InvokeObject.class, Integer[].class, Integer.class,
+						"return arg1.call2(arg2[0], arg2[1]);");
+			} catch (final CompilationException e) {
+				e.printStackTrace();
+			}
+
 			reflectMethod = InvokeObject.class.getMethod("call");
+			reflectMethod2 = InvokeObject.class.getMethod("call2", int.class, int.class);
 		}
 	}
 
@@ -84,6 +95,16 @@ public class JMHTest {
 	@Benchmark
 	public void benchmark_generatedCode(final BenchmarkState state, final Blackhole bh) {
 		state.func.apply(state.obj);
+	}
+
+	/**
+	 * @param state
+	 * @param bh
+	 */
+	@Benchmark
+	public void benchmark_generatedCode2(final BenchmarkState state, final Blackhole bh) {
+		final Integer[] argArray = { 1, 2 };
+		state.func2.apply(state.obj, argArray);
 	}
 
 	/**
@@ -103,6 +124,19 @@ public class JMHTest {
 	public void benchmark_reflect(final BenchmarkState state, final Blackhole bh) {
 		try {
 			state.reflectMethod.invoke(state.obj);
+		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+			e.printStackTrace();
+		}
+	}
+
+	/**
+	 * @param state
+	 * @param bh
+	 */
+	@Benchmark
+	public void benchmark_reflect2(final BenchmarkState state, final Blackhole bh) {
+		try {
+			state.reflectMethod2.invoke(state.obj, 1, 2);
 		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 			e.printStackTrace();
 		}

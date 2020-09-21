@@ -27,6 +27,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -115,15 +116,62 @@ public class RuntimeCompiler {
 		}
 	}
 
+	public <T, U, R> BiFunction<T, U, R> compileAndConstructBiFunctionalInterface(final Class<T> arg1Type,
+			final Class<U> arg2Type, final Class<R> returnType, final String body) throws CompilationException {
+		final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
+
+		final String className = "BiFunc" + UUID.randomUUID().toString().replace("-", "");
+
+		final InMemoryClassFile classOuput = new InMemoryClassFile(className);
+		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
+				null);
+
+		final String sourceCode = getBiFunctionalSourceCode(className, arg1Type, arg2Type, returnType, body);
+		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
+			compileSynchronous(className, sourceCode, collector, wrappedManager);
+
+			// Load the in memory bytecode as a Class.
+			return constructInstance(loadClass(className, classOuput));
+		} catch (final ClassNotFoundException excp) {
+			throw new CompilationException("Error loading compiled class", excp);
+		} catch (final IOException excp) {
+			throw new CompilationException("Error loading compiled class", excp);
+		}
+	}
+
+	private String getImportName(final Class<?> c) {
+		if (c.getComponentType() != null) {
+			return c.getComponentType().getName();
+		} else {
+			return c.getName();
+		}
+	}
+
 	private String getFunctionalSourceCode(final String className, final Class<?> argType, final Class<?> returnType,
 			final String body) {
 		final String argT = argType.getSimpleName();
 		final String retT = returnType.getSimpleName();
 		return "import java.util.function.Function;\n" + //
-				"import " + argType.getName() + ";\n" + //
-				"import " + returnType.getName() + ";\n" + //
+				"import " + getImportName(argType) + ";\n" + //
+				"import " + getImportName(returnType) + ";\n" + //
 				"public class " + className + " implements Function<" + argT + "," + retT + "> {\n" + //
 				"public " + retT + " apply(" + argT + " arg) {\n" + //
+				body + //
+				"}\n" + //
+				"}\n";
+	}
+
+	private String getBiFunctionalSourceCode(final String className, final Class<?> arg1Type, final Class<?> arg2Type,
+			final Class<?> returnType, final String body) {
+		final String arg1T = arg1Type.getSimpleName();
+		final String arg2T = arg2Type.getSimpleName();
+		final String retT = returnType.getSimpleName();
+		return "import java.util.function.BiFunction;\n" + //
+				"import " + getImportName(arg1Type) + ";\n" + //
+				"import " + getImportName(arg2Type) + ";\n" + //
+				"import " + getImportName(returnType) + ";\n" + //
+				"public class " + className + " implements BiFunction<" + arg1T + "," + arg2T + "," + retT + "> {\n" + //
+				"public " + retT + " apply(" + arg1T + " arg1, " + arg2T + " arg2) {\n" + //
 				body + //
 				"}\n" + //
 				"}\n";
