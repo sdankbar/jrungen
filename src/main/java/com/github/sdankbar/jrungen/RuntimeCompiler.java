@@ -24,6 +24,7 @@ package com.github.sdankbar.jrungen;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -139,6 +140,50 @@ public class RuntimeCompiler {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
+	public <T, R> BiFunction<T, Object[], R> compileMethodCaller(final Method m) throws CompilationException {
+		final StringBuilder body = new StringBuilder();
+		if (!m.getReturnType().equals(void.class) && !m.getReturnType().equals(Void.class)) {
+			body.append("return ");
+		}
+		body.append("arg1." + m.getName() + "(");
+		int i = 0;
+		for (final Class<?> argType : m.getParameterTypes()) {
+			body.append("(" + argType.getSimpleName() + ") arg2[" + i + "]");
+			++i;
+		}
+		body.append(");");
+		return compileAndConstructBiFunctionalInterface((Class<T>) m.getDeclaringClass(), Object[].class,
+				(Class<R>) toReferenceType(m.getReturnType()), body.toString());
+	}
+
+	private Class<?> toReferenceType(final Class<?> c) {
+		if (c.isPrimitive()) {
+			if (c.equals(boolean.class)) {
+				return Boolean.class;
+			} else if (c.equals(byte.class)) {
+				return Byte.class;
+			} else if (c.equals(char.class)) {
+				return Character.class;
+			} else if (c.equals(short.class)) {
+				return Short.class;
+			} else if (c.equals(int.class)) {
+				return Integer.class;
+			} else if (c.equals(long.class)) {
+				return Long.class;
+			} else if (c.equals(float.class)) {
+				return Float.class;
+			} else if (c.equals(double.class)) {
+				return Double.class;
+			} else {
+				return Void.class;
+			}
+		} else {
+			return c;
+
+		}
+	}
+
 	private String getImportName(final Class<?> c) {
 		if (c.getComponentType() != null) {
 			return c.getComponentType().getName();
@@ -161,20 +206,42 @@ public class RuntimeCompiler {
 				"}\n";
 	}
 
+	private boolean isImportable(final Class<?> c) {
+		if (c.isPrimitive()) {
+			return false;
+		} else if (c.equals(Boolean.class) || c.equals(Byte.class) || c.equals(Character.class) || c.equals(Short.class)
+				|| c.equals(Integer.class) || c.equals(Long.class) || c.equals(Float.class) || c.equals(Double.class)
+				|| c.equals(Void.class)) {
+			return false;
+		} else {
+			return true;
+		}
+	}
+
 	private String getBiFunctionalSourceCode(final String className, final Class<?> arg1Type, final Class<?> arg2Type,
 			final Class<?> returnType, final String body) {
 		final String arg1T = arg1Type.getSimpleName();
 		final String arg2T = arg2Type.getSimpleName();
 		final String retT = returnType.getSimpleName();
-		return "import java.util.function.BiFunction;\n" + //
-				"import " + getImportName(arg1Type) + ";\n" + //
-				"import " + getImportName(arg2Type) + ";\n" + //
-				"import " + getImportName(returnType) + ";\n" + //
-				"public class " + className + " implements BiFunction<" + arg1T + "," + arg2T + "," + retT + "> {\n" + //
-				"public " + retT + " apply(" + arg1T + " arg1, " + arg2T + " arg2) {\n" + //
-				body + //
-				"}\n" + //
-				"}\n";
+
+		final StringBuilder b = new StringBuilder();
+		b.append("import java.util.function.BiFunction;\n");
+		if (isImportable(arg1Type)) {
+			b.append("import " + getImportName(arg1Type) + ";\n");
+		}
+		if (isImportable(arg2Type)) {
+			b.append("import " + getImportName(arg2Type) + ";\n");
+		}
+		if (isImportable(returnType)) {
+			b.append("import " + getImportName(returnType) + ";\n");
+		}
+		b.append("public class " + className + " implements BiFunction<" + arg1T + "," + arg2T + "," + retT + "> {\n");
+		b.append("public " + retT + " apply(" + arg1T + " arg1, " + arg2T + " arg2) {\n");
+		b.append(body);
+		b.append("}\n");
+		b.append("}\n");
+
+		return b.toString();
 	}
 
 	private void compileSynchronous(final String className, final String sourceCode,

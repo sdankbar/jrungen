@@ -28,7 +28,7 @@ package com.github.sdankbar.jrungen.helper;
  */
 public class InvokeObject {
 
-	int i = 0;
+	public int i = 0;
 
 	public int call() {
 		return ++i;

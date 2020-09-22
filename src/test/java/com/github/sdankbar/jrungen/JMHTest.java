@@ -60,6 +60,8 @@ public class JMHTest {
 		Method reflectMethod;
 		Method reflectMethod2;
 
+		BiFunction<InvokeObject, Object[], Void> func3;
+
 		/**
 		 * Sets up shared state.
 		 *
@@ -79,6 +81,13 @@ public class JMHTest {
 			try {
 				func2 = c.compileAndConstructBiFunctionalInterface(InvokeObject.class, Integer[].class, Integer.class,
 						"return arg1.call2(arg2[0], arg2[1]);");
+			} catch (final CompilationException e) {
+				e.printStackTrace();
+			}
+
+			try {
+				final Method tempMethod = InvokeObject.class.getMethod("call");
+				func3 = c.compileMethodCaller(tempMethod);
 			} catch (final CompilationException e) {
 				e.printStackTrace();
 			}
@@ -105,6 +114,16 @@ public class JMHTest {
 	public void benchmark_generatedCode2(final BenchmarkState state, final Blackhole bh) {
 		final Integer[] argArray = { 1, 2 };
 		state.func2.apply(state.obj, argArray);
+	}
+
+	/**
+	 * @param state
+	 * @param bh
+	 */
+	@Benchmark
+	public void benchmark_generatedCode3(final BenchmarkState state, final Blackhole bh) {
+		final Object[] array = {};
+		state.func3.apply(state.obj, array);
 	}
 
 	/**
