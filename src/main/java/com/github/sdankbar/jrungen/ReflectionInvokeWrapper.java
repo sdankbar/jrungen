@@ -20,6 +20,14 @@ public class ReflectionInvokeWrapper<T, R> {
 		compileFuture = COMPILER.compileMethodCallerAsync(m);
 	}
 
+	public void forceCompilation() {
+		try {
+			func = compileFuture.get();
+		} catch (InterruptedException | ExecutionException e) {
+			throw new InvokationException(e);
+		}
+	}
+
 	@SuppressWarnings("unchecked")
 	public R invoke(final T obj, final Object[] args) {
 		if (func != null) {
@@ -28,16 +36,15 @@ public class ReflectionInvokeWrapper<T, R> {
 			if (compileFuture.isDone()) {
 				try {
 					func = compileFuture.get();
-					return func.apply(obj, args);
 				} catch (InterruptedException | ExecutionException e) {
-					throw new IllegalStateException(e);
+					throw new InvokationException(e);
 				}
-			} else {
-				try {
-					return (R) method.invoke(obj, args);
-				} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-					throw new IllegalStateException(e);
-				}
+			}
+
+			try {
+				return (R) method.invoke(obj, args);
+			} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+				throw new InvokationException(e);
 			}
 		}
 	}

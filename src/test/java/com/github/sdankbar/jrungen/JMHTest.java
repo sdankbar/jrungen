@@ -91,7 +91,12 @@ public class JMHTest {
 				final Method tempMethod = InvokeObject.class.getMethod("call");
 				func3 = c.compileMethodCaller(tempMethod);
 				wrapper = new ReflectionInvokeWrapper<>(tempMethod);
-			} catch (final CompilationException e) {
+				final Object[] array = {};
+				for (int i = 0; i < 1000; ++i) {
+					wrapper.invoke(obj, array);
+					Thread.sleep(0, 1000);
+				}
+			} catch (final CompilationException | InterruptedException e) {
 				e.printStackTrace();
 			}
 
