@@ -28,6 +28,10 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadFactory;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -39,7 +43,19 @@ import javax.tools.JavaFileManager;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class RuntimeCompiler {
+
+	private static ExecutorService COMPILER_THREADS = Executors.newCachedThreadPool(new ThreadFactory() {
+		public Thread newThread(final Runnable r) {
+			final Thread t = Executors.defaultThreadFactory().newThread(r);
+			t.setDaemon(true);
+			return t;
+		}
+	});
+	private static final Logger log = LoggerFactory.getLogger(RuntimeCompiler.class);
 
 	@SuppressWarnings("unchecked")
 	private static <T> Class<T> loadClass(final String className, final InMemoryClassFile classOuput)
@@ -83,7 +99,7 @@ public class RuntimeCompiler {
 		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
 				null);
 		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
-			compileSynchronous(className, sourceCode, collector, wrappedManager);
+			compile(className, sourceCode, collector, wrappedManager);
 
 			// Load the in memory bytecode as a Class.
 			return loadClass(className, classOuput);
@@ -92,6 +108,17 @@ public class RuntimeCompiler {
 		} catch (final IOException excp) {
 			throw new CompilationException("Error loading compiled class", excp);
 		}
+	}
+
+	public <T> Future<Class<T>> compileAsync(final String className, final String sourceCode) {
+		return COMPILER_THREADS.submit(() -> {
+			try {
+				return compile(className, sourceCode);
+			} catch (final CompilationException e) {
+				log.warn("Error loading compiled class", e);
+				return null;
+			}
+		});
 	}
 
 	public <T, R> Function<T, R> compileAndConstructFunctionalInterface(final Class<T> argType,
@@ -106,15 +133,25 @@ public class RuntimeCompiler {
 
 		final String sourceCode = getFunctionalSourceCode(className, argType, returnType, body);
 		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
-			compileSynchronous(className, sourceCode, collector, wrappedManager);
+			compile(className, sourceCode, collector, wrappedManager);
 
 			// Load the in memory bytecode as a Class.
 			return constructInstance(loadClass(className, classOuput));
-		} catch (final ClassNotFoundException excp) {
-			throw new CompilationException("Error loading compiled class", excp);
-		} catch (final IOException excp) {
+		} catch (final ClassNotFoundException | IOException excp) {
 			throw new CompilationException("Error loading compiled class", excp);
 		}
+	}
+
+	public <T, R> Future<Function<T, R>> compileAndConstructFunctionalInterfaceAsync(final Class<T> argType,
+			final Class<R> returnType, final String body) {
+		return COMPILER_THREADS.submit(() -> {
+			try {
+				return compileAndConstructFunctionalInterface(argType, returnType, body);
+			} catch (final CompilationException e) {
+				log.warn("Error loading compiled class", e);
+				return null;
+			}
+		});
 	}
 
 	public <T, U, R> BiFunction<T, U, R> compileAndConstructBiFunctionalInterface(final Class<T> arg1Type,
@@ -129,15 +166,25 @@ public class RuntimeCompiler {
 
 		final String sourceCode = getBiFunctionalSourceCode(className, arg1Type, arg2Type, returnType, body);
 		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
-			compileSynchronous(className, sourceCode, collector, wrappedManager);
+			compile(className, sourceCode, collector, wrappedManager);
 
 			// Load the in memory bytecode as a Class.
 			return constructInstance(loadClass(className, classOuput));
-		} catch (final ClassNotFoundException excp) {
-			throw new CompilationException("Error loading compiled class", excp);
-		} catch (final IOException excp) {
+		} catch (final ClassNotFoundException | IOException excp) {
 			throw new CompilationException("Error loading compiled class", excp);
 		}
+	}
+
+	public <T, U, R> Future<BiFunction<T, U, R>> compileAndConstructBiFunctionalInterfaceAsync(final Class<T> arg1Type,
+			final Class<U> arg2Type, final Class<R> returnType, final String body) {
+		return COMPILER_THREADS.submit(() -> {
+			try {
+				return compileAndConstructBiFunctionalInterface(arg1Type, arg2Type, returnType, body);
+			} catch (final CompilationException e) {
+				log.warn("Error loading compiled class", e);
+				return null;
+			}
+		});
 	}
 
 	@SuppressWarnings("unchecked")
@@ -155,6 +202,17 @@ public class RuntimeCompiler {
 		body.append(");");
 		return compileAndConstructBiFunctionalInterface((Class<T>) m.getDeclaringClass(), Object[].class,
 				(Class<R>) toReferenceType(m.getReturnType()), body.toString());
+	}
+
+	public <T, R> Future<BiFunction<T, Object[], R>> compileMethodCallerAsync(final Method m) {
+		return COMPILER_THREADS.submit(() -> {
+			try {
+				return compileMethodCaller(m);
+			} catch (final CompilationException e) {
+				log.warn("Error loading compiled class", e);
+				return null;
+			}
+		});
 	}
 
 	private Class<?> toReferenceType(final Class<?> c) {
@@ -244,7 +302,7 @@ public class RuntimeCompiler {
 		return b.toString();
 	}
 
-	private void compileSynchronous(final String className, final String sourceCode,
+	private void compile(final String className, final String sourceCode,
 			final DiagnosticCollector<JavaFileObject> collector, final JavaFileManager wrappedManager)
 			throws CompilationException {
 		final InMemorySourceFile stringObject = new InMemorySourceFile(className, sourceCode);
