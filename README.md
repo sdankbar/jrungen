@@ -1,4 +1,4 @@
-# jrungen
+# JRunGen
 
 JRunGen is a library for compiling Java code at runtime and then loading that compiled code so it can be run.  
 This can be used to replace reflection without the overhead of reflection.
