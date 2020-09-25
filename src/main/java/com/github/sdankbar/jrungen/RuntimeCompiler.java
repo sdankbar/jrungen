@@ -49,6 +49,7 @@ import org.slf4j.LoggerFactory;
 public class RuntimeCompiler {
 
 	private static ExecutorService COMPILER_THREADS = Executors.newCachedThreadPool(new ThreadFactory() {
+		@Override
 		public Thread newThread(final Runnable r) {
 			final Thread t = Executors.defaultThreadFactory().newThread(r);
 			t.setDaemon(true);
@@ -254,14 +255,22 @@ public class RuntimeCompiler {
 			final String body) {
 		final String argT = argType.getSimpleName();
 		final String retT = returnType.getSimpleName();
-		return "import java.util.function.Function;\n" + //
-				"import " + getImportName(argType) + ";\n" + //
-				"import " + getImportName(returnType) + ";\n" + //
-				"public class " + className + " implements Function<" + argT + "," + retT + "> {\n" + //
-				"public " + retT + " apply(" + argT + " arg) {\n" + //
-				body + //
-				"}\n" + //
-				"}\n";
+		final StringBuilder builder = new StringBuilder();
+		builder.append("import java.util.function.Function;\n");
+		builder.append("import " + getImportName(argType) + ";\n");
+		builder.append("import " + getImportName(returnType) + ";\n");
+		if (isImportable(argType)) {
+			builder.append("import " + getImportName(argType) + ";\n");
+		}
+		if (isImportable(returnType)) {
+			builder.append("import " + getImportName(returnType) + ";\n");
+		}
+		builder.append("public class " + className + " implements Function<" + argT + "," + retT + "> {\n");
+		builder.append("public " + retT + " apply(" + argT + " arg) {\n");
+		builder.append(body);
+		builder.append("}\n");
+		builder.append("}\n");
+		return builder.toString();
 	}
 
 	private boolean isImportable(final Class<?> c) {
