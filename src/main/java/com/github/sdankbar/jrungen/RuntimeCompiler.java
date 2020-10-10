@@ -104,9 +104,7 @@ public class RuntimeCompiler {
 
 			// Load the in memory bytecode as a Class.
 			return loadClass(className, classOuput);
-		} catch (final ClassNotFoundException excp) {
-			throw new CompilationException("Error loading compiled class", excp);
-		} catch (final IOException excp) {
+		} catch (final IOException | ClassNotFoundException excp) {
 			throw new CompilationException("Error loading compiled class", excp);
 		}
 	}
@@ -123,7 +121,7 @@ public class RuntimeCompiler {
 	}
 
 	public <T, R> Function<T, R> compileAndConstructFunctionalInterface(final Class<T> argType,
-			final Class<R> returnType, final String body) throws CompilationException {
+			final Class<R> returnType, final String body, final Class<?>... extraImports) throws CompilationException {
 		final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
 
 		final String className = "Func" + UUID.randomUUID().toString().replace("-", "");
@@ -132,7 +130,7 @@ public class RuntimeCompiler {
 		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
 				null);
 
-		final String sourceCode = getFunctionalSourceCode(className, argType, returnType, body);
+		final String sourceCode = getFunctionalSourceCode(className, argType, returnType, extraImports, body);
 		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
 			compile(className, sourceCode, collector, wrappedManager);
 
@@ -144,10 +142,10 @@ public class RuntimeCompiler {
 	}
 
 	public <T, R> Future<Function<T, R>> compileAndConstructFunctionalInterfaceAsync(final Class<T> argType,
-			final Class<R> returnType, final String body) {
+			final Class<R> returnType, final String body, final Class<?>... extraImports) {
 		return COMPILER_THREADS.submit(() -> {
 			try {
-				return compileAndConstructFunctionalInterface(argType, returnType, body);
+				return compileAndConstructFunctionalInterface(argType, returnType, body, extraImports);
 			} catch (final CompilationException e) {
 				log.warn("Error loading compiled class", e);
 				return null;
@@ -156,7 +154,8 @@ public class RuntimeCompiler {
 	}
 
 	public <T, U, R> BiFunction<T, U, R> compileAndConstructBiFunctionalInterface(final Class<T> arg1Type,
-			final Class<U> arg2Type, final Class<R> returnType, final String body) throws CompilationException {
+			final Class<U> arg2Type, final Class<R> returnType, final String body, final Class<?>... extraImports)
+			throws CompilationException {
 		final DiagnosticCollector<JavaFileObject> collector = new DiagnosticCollector<>();
 
 		final String className = "BiFunc" + UUID.randomUUID().toString().replace("-", "");
@@ -165,7 +164,8 @@ public class RuntimeCompiler {
 		final StandardJavaFileManager standardFileManager = compilerReference.getStandardFileManager(collector, null,
 				null);
 
-		final String sourceCode = getBiFunctionalSourceCode(className, arg1Type, arg2Type, returnType, body);
+		final String sourceCode = getBiFunctionalSourceCode(className, arg1Type, arg2Type, returnType, extraImports,
+				body);
 		try (final JavaFileManager wrappedManager = new InMemoryFileManager(standardFileManager, classOuput)) {
 			compile(className, sourceCode, collector, wrappedManager);
 
@@ -177,10 +177,10 @@ public class RuntimeCompiler {
 	}
 
 	public <T, U, R> Future<BiFunction<T, U, R>> compileAndConstructBiFunctionalInterfaceAsync(final Class<T> arg1Type,
-			final Class<U> arg2Type, final Class<R> returnType, final String body) {
+			final Class<U> arg2Type, final Class<R> returnType, final String body, final Class<?>... extraImports) {
 		return COMPILER_THREADS.submit(() -> {
 			try {
-				return compileAndConstructBiFunctionalInterface(arg1Type, arg2Type, returnType, body);
+				return compileAndConstructBiFunctionalInterface(arg1Type, arg2Type, returnType, body, extraImports);
 			} catch (final CompilationException e) {
 				log.warn("Error loading compiled class", e);
 				return null;
@@ -191,18 +191,28 @@ public class RuntimeCompiler {
 	@SuppressWarnings("unchecked")
 	public <T, R> BiFunction<T, Object[], R> compileMethodCaller(final Method m) throws CompilationException {
 		final StringBuilder body = new StringBuilder();
-		if (!m.getReturnType().equals(void.class) && !m.getReturnType().equals(Void.class)) {
+		final boolean hasReturn = !m.getReturnType().equals(void.class);
+		if (hasReturn) {
 			body.append("return ");
 		}
 		body.append("arg1." + m.getName() + "(");
+		final Class<?>[] extraImports = new Class[m.getParameterCount()];
 		int i = 0;
 		for (final Class<?> argType : m.getParameterTypes()) {
+			extraImports[i] = argType;
 			body.append("(" + argType.getSimpleName() + ") arg2[" + i + "]");
 			++i;
+			if (i < m.getParameterCount()) {
+				body.append(", ");
+			}
 		}
 		body.append(");");
+		if (!hasReturn) {
+			body.append("return null;");
+		}
+
 		return compileAndConstructBiFunctionalInterface((Class<T>) m.getDeclaringClass(), Object[].class,
-				(Class<R>) toReferenceType(m.getReturnType()), body.toString());
+				(Class<R>) toReferenceType(m.getReturnType()), body.toString(), extraImports);
 	}
 
 	public <T, R> Future<BiFunction<T, Object[], R>> compileMethodCallerAsync(final Method m) {
@@ -244,26 +254,32 @@ public class RuntimeCompiler {
 	}
 
 	private String getImportName(final Class<?> c) {
+		final String name;
 		if (c.getComponentType() != null) {
-			return c.getComponentType().getName();
+			name = c.getComponentType().getName();
 		} else {
-			return c.getName();
+			name = c.getName();
 		}
+		// Handle inner class definitions
+		return name.replace("$", ".");
 	}
 
 	private String getFunctionalSourceCode(final String className, final Class<?> argType, final Class<?> returnType,
-			final String body) {
+			final Class<?>[] extraImports, final String body) {
 		final String argT = argType.getSimpleName();
 		final String retT = returnType.getSimpleName();
 		final StringBuilder builder = new StringBuilder();
 		builder.append("import java.util.function.Function;\n");
-		builder.append("import " + getImportName(argType) + ";\n");
-		builder.append("import " + getImportName(returnType) + ";\n");
 		if (isImportable(argType)) {
 			builder.append("import " + getImportName(argType) + ";\n");
 		}
 		if (isImportable(returnType)) {
 			builder.append("import " + getImportName(returnType) + ";\n");
+		}
+		for (final Class<?> c : extraImports) {
+			if (isImportable(returnType)) {
+				builder.append("import " + getImportName(c) + ";\n");
+			}
 		}
 		builder.append("public class " + className + " implements Function<" + argT + "," + retT + "> {\n");
 		builder.append("public " + retT + " apply(" + argT + " arg) {\n");
@@ -286,7 +302,7 @@ public class RuntimeCompiler {
 	}
 
 	private String getBiFunctionalSourceCode(final String className, final Class<?> arg1Type, final Class<?> arg2Type,
-			final Class<?> returnType, final String body) {
+			final Class<?> returnType, final Class<?>[] extraImports, final String body) {
 		final String arg1T = arg1Type.getSimpleName();
 		final String arg2T = arg2Type.getSimpleName();
 		final String retT = returnType.getSimpleName();
@@ -301,6 +317,11 @@ public class RuntimeCompiler {
 		}
 		if (isImportable(returnType)) {
 			b.append("import " + getImportName(returnType) + ";\n");
+		}
+		for (final Class<?> c : extraImports) {
+			if (isImportable(returnType)) {
+				b.append("import " + getImportName(c) + ";\n");
+			}
 		}
 		b.append("public class " + className + " implements BiFunction<" + arg1T + "," + arg2T + "," + retT + "> {\n");
 		b.append("public " + retT + " apply(" + arg1T + " arg1, " + arg2T + " arg2) {\n");
