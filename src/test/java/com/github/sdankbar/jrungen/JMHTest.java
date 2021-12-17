@@ -60,6 +60,7 @@ public class JMHTest {
 		BiFunction<InvokeObject, Integer[], Integer> func2;
 		Method reflectMethod;
 		Method reflectMethod2;
+		int i = 0;
 
 		BiFunction<InvokeObject, Object[], Void> func3;
 		ReflectionInvokeWrapper<InvokeObject, Void> wrapper;
@@ -177,6 +178,14 @@ public class JMHTest {
 		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
 			e.printStackTrace();
 		}
+	}
+
+	/**
+	 * @param state
+	 */
+	@Benchmark
+	public void benchmark_inline(final BenchmarkState state) {
+		++state.i;
 	}
 
 	/**
